@@ -35,8 +35,15 @@ export async function middleware(request: NextRequest) {
   );
 
   const pathname = request.nextUrl.pathname;
-  const { data: { user } } = await supabase.auth.getUser();
 
+const {
+  data: { user },
+  error,
+} = await supabase.auth.getUser();
+
+if (error) {
+  console.error(error);
+}
   if (isPrivatePath(pathname) && !user) {
     const redirectUrl = new URL('/login', request.url);
     redirectUrl.searchParams.set('next', pathname + request.nextUrl.search);
