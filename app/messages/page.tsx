@@ -19,6 +19,8 @@ function MessagesInner() {
   const [loading, setLoading] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const activeConversation = conversations.find((c) => c.id === activeId) || null;
+
   useEffect(() => {
     const supabase = createClient();
     (async () => {
@@ -73,8 +75,8 @@ function MessagesInner() {
       {conversations.length === 0 ? (
         <EmptyState text="Aucune conversation pour l'instant." />
       ) : (
-        <div className="rounded-2xl overflow-hidden grid bg-white border border-navy/[0.08]" style={{ gridTemplateColumns: '260px 1fr', minHeight: 440 }}>
-          <div className="border-r border-navy/[0.08]">
+        <div className="rounded-2xl overflow-hidden bg-white border border-navy/[0.08] min-h-[440px] md:grid" style={{ gridTemplateColumns: '260px 1fr' }}>
+          <div className={`border-r border-navy/[0.08] ${activeId ? 'hidden md:block' : 'block'}`}>
             {conversations.map((c) => {
               const otherName = profile.role === 'skipper' ? c.demandeur?.full_name : c.skipper?.full_name;
               return (
@@ -96,12 +98,27 @@ function MessagesInner() {
               );
             })}
           </div>
-          <div className="flex flex-col">
+          <div className={`flex flex-col ${activeId ? 'block' : 'hidden md:flex'}`}>
             {!activeId ? (
               <div className="flex-1 flex items-center justify-center text-sm text-gray-500">Sélectionnez une conversation</div>
             ) : (
               <>
-                <div ref={scrollRef} className="flex-1 p-4 space-y-3 overflow-y-auto" style={{ maxHeight: 380 }}>
+                <div className="px-4 py-3 border-b border-navy/[0.08] md:hidden">
+                  <button
+                    type="button"
+                    onClick={() => setActiveId(null)}
+                    className="text-sm font-semibold text-navy"
+                  >
+                    Retour aux conversations
+                  </button>
+                  <div className="text-xs text-gray-500 mt-1 truncate">
+                    {activeConversation?.missions?.departure}
+                    {activeConversation?.missions?.destination
+                      ? ` → ${activeConversation.missions.destination}`
+                      : ''}
+                  </div>
+                </div>
+                <div ref={scrollRef} className="flex-1 p-4 space-y-3 overflow-y-auto max-h-[55vh] md:max-h-[380px]">
                   {messages.length === 0 && <p className="text-sm text-center text-gray-500">Envoyez le premier message.</p>}
                   {messages.map((m) => {
                     const mine = m.sender_id === profile.id;
