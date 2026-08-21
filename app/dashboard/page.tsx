@@ -6,15 +6,12 @@ export default async function DashboardRouter() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
- const { data: profile, error } = await supabase
+  const { data: profile } = await supabase
   .from('profiles')
   .select('*')
   .eq('id', user.id)
   .single();
 
-console.log("USER ID:", user.id);
-console.log("PROFILE:", profile);
-console.log("ERROR:", error);
   if (!profile) redirect('/login');
 
   if (profile.role === 'skipper') redirect('/dashboard/skipper');
