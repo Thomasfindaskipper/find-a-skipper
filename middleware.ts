@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { getSupabaseEnv } from '@/lib/supabase/env';
 
 const PUBLIC_PATHS = ['/','/login', '/signup', '/forgot-password', '/reset-password', '/auth/callback'];
 const PRIVATE_PATHS = ['/dashboard', '/profile', '/messages', '/missions/new', '/my-missions', '/my-applications'];
@@ -14,10 +15,11 @@ function isPrivatePath(pathname: string) {
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
+  const { url, publishableKey } = getSupabaseEnv();
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    url,
+    publishableKey,
     {
       cookies: {
         getAll() {
