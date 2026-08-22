@@ -49,7 +49,11 @@ function SignupForm() {
   const [experienceYears, setExperienceYears] = useState('');
   const [zones, setZones] = useState<string[]>([]);
   const [boatTypes, setBoatTypes] = useState<string[]>([]);
+  const [languages, setLanguages] = useState('');
   const [permits, setPermits] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState('');
+  const [hourlyRate, setHourlyRate] = useState('');
+  const [availabilityNote, setAvailabilityNote] = useState('');
   const [bio, setBio] = useState('');
   // demandeur fields
   const [companyName, setCompanyName] = useState('');
@@ -84,7 +88,11 @@ function SignupForm() {
           experience_years: role === 'skipper' ? experienceYears : null,
           zones: role === 'skipper' ? zones : [],
           boat_types: role === 'skipper' ? boatTypes : [],
+          languages: role === 'skipper' ? languages.split(',').map((item) => item.trim()).filter(Boolean) : [],
           permits: role === 'skipper' ? permits : null,
+          avatar_url: role === 'skipper' ? avatarUrl : null,
+          hourly_rate: role === 'skipper' ? hourlyRate : null,
+          availability_note: role === 'skipper' ? availabilityNote : null,
           bio: role === 'skipper' ? bio : null,
         },
       },
@@ -175,6 +183,18 @@ function SignupForm() {
             </Field>
             <Field label="Permis / brevets">
               <TextInput value={permits} onChange={(e) => setPermits(e.target.value)} />
+            </Field>
+            <Field label="Langues">
+              <TextInput value={languages} onChange={(e) => setLanguages(e.target.value)} placeholder="Français, Anglais" />
+            </Field>
+            <Field label="Photo de profil (URL)">
+              <TextInput value={avatarUrl} onChange={(e) => setAvatarUrl(e.target.value)} placeholder="https://..." />
+            </Field>
+            <Field label="Tarif">
+              <TextInput value={hourlyRate} onChange={(e) => setHourlyRate(e.target.value)} placeholder="Ex. 250€/jour" />
+            </Field>
+            <Field label="Disponibilité">
+              <TextInput value={availabilityNote} onChange={(e) => setAvailabilityNote(e.target.value)} placeholder="Ex. Disponible avril à octobre" />
             </Field>
             <Field label="Bio courte">
               <TextArea value={bio} onChange={(e) => setBio(e.target.value)} />

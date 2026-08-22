@@ -7,6 +7,18 @@ import { Field, TextInput, TextArea, Button, ErrorBanner } from '@/components/ui
 import type { Profile } from '@/lib/database.types';
 
 const ZONES = ['Méditerranée', 'Atlantique', 'Manche / Mer du Nord', 'Bretagne', 'Outre-mer'];
+const BOAT_TYPES = ['Voilier', 'Moteur', 'Catamaran', 'Grande unité (+20m)'];
+
+function splitList(value: string) {
+  return value
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function joinList(value: string[] | undefined) {
+  return (value || []).join(', ');
+}
 
 function Tag({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
@@ -33,7 +45,17 @@ export default function ProfilePage() {
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [zones, setZones] = useState<string[]>([]);
+  const [boatTypes, setBoatTypes] = useState<string[]>([]);
+  const [languages, setLanguages] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState('');
+  const [experienceYears, setExperienceYears] = useState('');
+  const [certifications, setCertifications] = useState('');
+  const [hourlyRate, setHourlyRate] = useState('');
+  const [availabilityNote, setAvailabilityNote] = useState('');
   const [bio, setBio] = useState('');
+  const [companyName, setCompanyName] = useState('');
+  const [fleetSize, setFleetSize] = useState('');
+  const [city, setCity] = useState('');
 
   useEffect(() => {
     const supabase = createClient();
@@ -47,7 +69,17 @@ export default function ProfilePage() {
       setFullName(p.full_name);
       setPhone(p.phone || '');
       setZones(p.zones || []);
+      setBoatTypes(p.boat_types || []);
+      setLanguages(joinList(p.languages));
+      setAvatarUrl(p.avatar_url || '');
+      setExperienceYears(p.experience_years?.toString() || '');
+      setCertifications(joinList((p.certifications || []).map((cert) => cert.name)));
+      setHourlyRate(p.hourly_rate || '');
+      setAvailabilityNote(p.availability_note || '');
       setBio(p.bio || '');
+      setCompanyName(p.company_name || '');
+      setFleetSize(p.fleet_size?.toString() || '');
+      setCity(p.city || '');
       setLoading(false);
     })();
   }, []);
@@ -63,11 +95,42 @@ export default function ProfilePage() {
     const supabase = createClient();
     const { error: updErr } = await supabase
       .from('profiles')
-      .update({ full_name: fullName, phone, zones, bio })
+      .update({
+        full_name: fullName,
+        phone,
+        avatar_url: avatarUrl || null,
+        zones,
+        boat_types: boatTypes,
+        languages: splitList(languages),
+        experience_years: experienceYears ? Number(experienceYears) : null,
+        certifications: splitList(certifications).map((name) => ({ name, verified: false })),
+        hourly_rate: hourlyRate || null,
+        availability_note: availabilityNote || null,
+        company_name: companyName || null,
+        fleet_size: fleetSize ? Number(fleetSize) : null,
+        city: city || null,
+        bio,
+      })
       .eq('id', profile!.id);
     setSaving(false);
     if (updErr) { setError(updErr.message); return; }
-    setProfile((p) => (p ? { ...p, full_name: fullName, phone, zones, bio } : p));
+    setProfile((p) => (p ? {
+      ...p,
+      full_name: fullName,
+      phone,
+      avatar_url: avatarUrl || null,
+      zones,
+      boat_types: boatTypes,
+      languages: splitList(languages),
+      experience_years: experienceYears ? Number(experienceYears) : null,
+      certifications: splitList(certifications).map((name) => ({ name, verified: false })),
+      hourly_rate: hourlyRate || null,
+      availability_note: availabilityNote || null,
+      company_name: companyName || null,
+      fleet_size: fleetSize ? Number(fleetSize) : null,
+      city: city || null,
+      bio,
+    } : p));
     setEditing(false);
   }
 
@@ -80,6 +143,16 @@ export default function ProfilePage() {
         <>
           <h1 className="font-display text-2xl font-bold mb-6">Mon profil</h1>
           <div className="rounded-2xl p-6 mb-4 bg-white border border-navy/[0.08]">
+            {profile.avatar_url && (
+              <div className="mb-4 flex items-center gap-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={profile.avatar_url} alt={profile.full_name} className="h-14 w-14 rounded-full object-cover border border-navy/[0.08]" />
+                <div>
+                  <div className="text-sm font-semibold">Photo de profil</div>
+                  <div className="text-xs text-gray-500 break-all">{profile.avatar_url}</div>
+                </div>
+              </div>
+            )}
             <div className="flex items-center justify-between mb-4">
               <span className="text-xs font-bold uppercase tracking-wide px-2.5 py-1 rounded-full bg-lightblue text-navy">
                 {profile.role === 'skipper' ? 'Skipper' : profile.role}
@@ -92,7 +165,17 @@ export default function ProfilePage() {
               <Row label="Nom" value={profile.full_name} />
               <Row label="Email" value={email} />
               {profile.phone && <Row label="Téléphone" value={profile.phone} />}
+              {profile.role !== 'skipper' && profile.company_name && <Row label="Société" value={profile.company_name} />}
+              {profile.role !== 'skipper' && profile.fleet_size !== null && <Row label="Flotte" value={String(profile.fleet_size)} />}
+              {profile.role !== 'skipper' && profile.city && <Row label="Ville" value={profile.city} />}
+              {profile.role === 'skipper' && profile.avatar_url && <Row label="Photo" value={profile.avatar_url} />}
+              {profile.role === 'skipper' && profile.experience_years !== null && <Row label="Expérience" value={`${profile.experience_years} ans`} />}
               {profile.role === 'skipper' && profile.zones?.length > 0 && <Row label="Zones" value={profile.zones.join(', ')} />}
+              {profile.role === 'skipper' && profile.boat_types?.length > 0 && <Row label="Bateaux" value={profile.boat_types.join(', ')} />}
+              {profile.role === 'skipper' && profile.languages?.length > 0 && <Row label="Langues" value={profile.languages.join(', ')} />}
+              {profile.role === 'skipper' && profile.certifications?.length > 0 && <Row label="Certifications" value={profile.certifications.map((cert) => cert.name).join(', ')} />}
+              {profile.role === 'skipper' && profile.hourly_rate && <Row label="Tarif" value={profile.hourly_rate} />}
+              {profile.role === 'skipper' && profile.availability_note && <Row label="Disponibilité" value={profile.availability_note} />}
               {profile.role === 'skipper' && profile.bio && <Row label="Bio" value={profile.bio} />}
             </dl>
           </div>
@@ -103,11 +186,27 @@ export default function ProfilePage() {
           <ErrorBanner message={error} />
           <Field label="Nom"><TextInput required value={fullName} onChange={(e) => setFullName(e.target.value)} /></Field>
           <Field label="Téléphone"><TextInput value={phone} onChange={(e) => setPhone(e.target.value)} /></Field>
+          <Field label="Photo de profil (URL)"><TextInput value={avatarUrl} onChange={(e) => setAvatarUrl(e.target.value)} placeholder="https://..." /></Field>
+          {profile.role !== 'skipper' && (
+            <>
+              <Field label="Nom de la société"><TextInput value={companyName} onChange={(e) => setCompanyName(e.target.value)} /></Field>
+              <Field label="Nombre de bateaux gérés"><TextInput type="number" min="0" value={fleetSize} onChange={(e) => setFleetSize(e.target.value)} /></Field>
+              <Field label="Ville"><TextInput value={city} onChange={(e) => setCity(e.target.value)} /></Field>
+            </>
+          )}
           {profile.role === 'skipper' && (
             <>
+              <Field label="Années d'expérience"><TextInput type="number" min="0" value={experienceYears} onChange={(e) => setExperienceYears(e.target.value)} /></Field>
               <Field label="Zones de navigation">
                 <div>{ZONES.map((z) => <Tag key={z} label={z} active={zones.includes(z)} onClick={() => toggleZone(z)} />)}</div>
               </Field>
+              <Field label="Types de bateaux maîtrisés">
+                <div>{BOAT_TYPES.map((b) => <Tag key={b} label={b} active={boatTypes.includes(b)} onClick={() => setBoatTypes((prev) => prev.includes(b) ? prev.filter((value) => value !== b) : [...prev, b])} />)}</div>
+              </Field>
+              <Field label="Langues"><TextInput value={languages} onChange={(e) => setLanguages(e.target.value)} placeholder="Français, Anglais" /></Field>
+              <Field label="Certifications"><TextInput value={certifications} onChange={(e) => setCertifications(e.target.value)} placeholder="Permis hauturier, Yachtmaster" /></Field>
+              <Field label="Tarif"><TextInput value={hourlyRate} onChange={(e) => setHourlyRate(e.target.value)} placeholder="Ex. 250€/jour" /></Field>
+              <Field label="Disponibilité"><TextInput value={availabilityNote} onChange={(e) => setAvailabilityNote(e.target.value)} placeholder="Ex. Disponible avril à octobre" /></Field>
               <Field label="Bio courte"><TextArea value={bio} onChange={(e) => setBio(e.target.value)} /></Field>
             </>
           )}

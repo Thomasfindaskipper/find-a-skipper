@@ -38,18 +38,28 @@ export default function SkipperProfilePage() {
       <button onClick={() => router.push('/skippers')} className="text-sm font-semibold mb-4 flex items-center gap-1 text-gray-500">
         <ArrowLeft size={14} /> Retour à l&apos;annuaire
       </button>
-      <div className="w-14 h-14 rounded-full flex items-center justify-center mb-4 font-bold text-lg bg-navyDeep text-white">{initials(skipper.full_name)}</div>
+      <div className="w-14 h-14 rounded-full flex items-center justify-center mb-4 font-bold text-lg bg-navyDeep text-white overflow-hidden">
+        {skipper.avatar_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={skipper.avatar_url} alt={skipper.full_name} className="h-full w-full object-cover" />
+        ) : (
+          initials(skipper.full_name)
+        )}
+      </div>
       <h1 className="font-display text-2xl font-bold mb-1">{skipper.full_name}</h1>
       <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full mb-4 bg-lightblue text-navy">
         <ShieldCheck size={12} /> {skipper.identity_verified ? 'Profil vérifié' : 'Profil skipper'}
       </span>
 
       <div className="rounded-2xl p-5 mb-6 space-y-3 bg-white border border-navy/[0.08]">
+        {skipper.avatar_url && <Row label="Photo" value={skipper.avatar_url} />}
         {skipper.experience_years && <Row label="Expérience" value={`${skipper.experience_years} ans`} />}
         {skipper.zones?.length > 0 && <Row label="Zones" value={skipper.zones.join(', ')} />}
         {skipper.boat_types?.length > 0 && <Row label="Bateaux" value={skipper.boat_types.join(', ')} />}
         {skipper.languages?.length > 0 && <Row label="Langues" value={skipper.languages.join(', ')} />}
+        {skipper.certifications?.length > 0 && <Row label="Certifications" value={skipper.certifications.map((cert) => cert.name).join(', ')} />}
         {skipper.permits && <Row label="Permis" value={skipper.permits} />}
+        {skipper.availability_note && <Row label="Disponibilité" value={skipper.availability_note} />}
         {skipper.hourly_rate && <Row label="Tarif" value={skipper.hourly_rate} />}
       </div>
 
