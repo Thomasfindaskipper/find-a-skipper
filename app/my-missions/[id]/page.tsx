@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Phone, Loader2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
@@ -32,19 +32,23 @@ export default function MissionApplicantsPage() {
   const [updatingMissionStatus, setUpdatingMissionStatus] = useState<Mission['status'] | null>(null);
   const [error, setError] = useState('');
 
+  const refreshApplications = useCallback(async (supabase = createClient()) => {
+    const { data: apps } = await supabase
+      .from('applications')
+      .select('*, profiles:skipper_id(id, full_name)')
+      .eq('mission_id', id);
+    setApplications((apps as unknown as Application[]) || []);
+  }, [id]);
+
   useEffect(() => {
     const supabase = createClient();
     (async () => {
       const { data: missionData } = await supabase.from('missions').select('*').eq('id', id).single();
       setMission(missionData as Mission | null);
-      const { data: apps } = await supabase
-        .from('applications')
-        .select('*, profiles:skipper_id(id, full_name)')
-        .eq('mission_id', id);
-      setApplications((apps as unknown as Application[]) || []);
+      await refreshApplications(supabase);
       setLoading(false);
     })();
-  }, [id]);
+  }, [id, refreshApplications]);
 
   async function contact(skipperId: string) {
     setContactingId(skipperId);
@@ -77,7 +81,7 @@ export default function MissionApplicantsPage() {
     setUpdatingStatusId(applicationId);
     const supabase = createClient();
 
-    const { data, error: updErr } = await supabase
+    const { error: updErr } = await supabase
       .from('applications')
       .update({ status })
       .eq('id', applicationId)
@@ -91,7 +95,7 @@ export default function MissionApplicantsPage() {
       return;
     }
 
-    setApplications((prev) => prev.map((a) => (a.id === applicationId ? { ...a, ...(data as Application) } : a)));
+    await refreshApplications(supabase);
     const { data: missionData } = await supabase
       .from('missions')
       .select('*')
@@ -206,9 +210,11 @@ export default function MissionApplicantsPage() {
                     </Button>
                   </>
                 )}
-                <Button onClick={() => contact(a.skipper_id)} disabled={contactingId === a.skipper_id} className="text-sm px-4 py-2">
-                  {contactingId === a.skipper_id ? 'Ouverture...' : 'Contacter'}
-                </Button>
+                {a.status === 'accepted' && (
+                  <Button onClick={() => contact(a.skipper_id)} disabled={contactingId === a.skipper_id} className="text-sm px-4 py-2">
+                    {contactingId === a.skipper_id ? 'Ouverture...' : 'Contacter'}
+                  </Button>
+                )}
               </div>
             </div>
           ))}
