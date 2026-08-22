@@ -56,7 +56,16 @@ create policy "Users can insert their own profile"
 
 create policy "Users can update their own profile"
   on public.profiles for update
-  using (auth.uid() = id);
+  using (auth.uid() = id)
+  with check (
+    auth.uid() = id
+    and role = (select p.role from public.profiles p where p.id = auth.uid())
+    and identity_verified = (
+      select p.identity_verified
+      from public.profiles p
+      where p.id = auth.uid()
+    )
+  );
 
 create policy "Admins can update any profile"
   on public.profiles for update
@@ -128,7 +137,21 @@ create policy "Demandeurs can create their own missions"
   );
 
 create policy "Posters can update their own missions"
-  on public.missions for update using (auth.uid() = poster_id);
+  on public.missions for update
+  using (auth.uid() = poster_id)
+  with check (
+    auth.uid() = poster_id
+    and is_featured = (
+      select m.is_featured
+      from public.missions m
+      where m.id = missions.id
+    )
+    and applicants_count = (
+      select m.applicants_count
+      from public.missions m
+      where m.id = missions.id
+    )
+  );
 
 create policy "Admins can update any mission"
   on public.missions for update
