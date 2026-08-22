@@ -53,7 +53,7 @@ export default function SkipperProfilePage() {
 
       <div className="rounded-2xl p-5 mb-6 space-y-3 bg-white border border-navy/[0.08]">
         {skipper.avatar_url && <Row label="Photo" value={skipper.avatar_url} />}
-        {skipper.experience_years && <Row label="Expérience" value={`${skipper.experience_years} ans`} />}
+        {skipper.experience_years !== null && <Row label="Expérience" value={`${skipper.experience_years} ans`} />}
         {skipper.zones?.length > 0 && <Row label="Zones" value={skipper.zones.join(', ')} />}
         {skipper.boat_types?.length > 0 && <Row label="Bateaux" value={skipper.boat_types.join(', ')} />}
         {skipper.languages?.length > 0 && <Row label="Langues" value={skipper.languages.join(', ')} />}
@@ -62,6 +62,26 @@ export default function SkipperProfilePage() {
         {skipper.availability_note && <Row label="Disponibilité" value={skipper.availability_note} />}
         {skipper.hourly_rate && <Row label="Tarif" value={skipper.hourly_rate} />}
       </div>
+
+      {skipper.gallery_urls?.length > 0 && (
+        <section className="mb-6">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">Galerie photos</h2>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {skipper.gallery_urls.filter(Boolean).map((url, index) => (
+              <a
+                key={`${url}-${index}`}
+                href={url}
+                target="_blank"
+                rel="noreferrer"
+                className="block overflow-hidden rounded-2xl border border-navy/[0.08] bg-white"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={url} alt={`${skipper.full_name} - photo ${index + 1}`} className="h-44 w-full object-cover" />
+              </a>
+            ))}
+          </div>
+        </section>
+      )}
 
       {skipper.bio && <p className="text-sm mb-6 leading-relaxed">{skipper.bio}</p>}
 
