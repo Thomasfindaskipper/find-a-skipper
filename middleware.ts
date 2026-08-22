@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { getSupabaseEnv } from '@/lib/supabase/env';
 
-const PUBLIC_PATHS = ['/','/login', '/signup', '/forgot-password', '/reset-password', '/auth/callback', '/skippers'];
+const PUBLIC_PATHS = ['/','/login', '/signup', '/forgot-password', '/reset-password', '/auth/callback', '/skippers', '/missions'];
 const PRIVATE_PATHS = ['/dashboard', '/profile', '/messages', '/missions/new', '/my-missions', '/my-applications'];
 
 function isPublicPath(pathname: string) {

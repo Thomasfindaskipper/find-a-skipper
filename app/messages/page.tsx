@@ -17,6 +17,7 @@ function MessagesInner() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState('');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const activeConversation = conversations.find((c) => c.id === activeId) || null;
@@ -24,18 +25,38 @@ function MessagesInner() {
   useEffect(() => {
     const supabase = createClient();
     (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setLoading(false); return; }
-      const { data: prof } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-      setProfile(prof as Profile);
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          setLoading(false);
+          return;
+        }
 
-      const { data: convs } = await supabase
-        .from('conversations')
-        .select('*, missions(departure, destination), demandeur:demandeur_id(full_name), skipper:skipper_id(full_name)')
-        .or(`demandeur_id.eq.${user.id},skipper_id.eq.${user.id}`)
-        .order('created_at', { ascending: false });
-      setConversations((convs as unknown as Conversation[]) || []);
-      setLoading(false);
+        const { data: prof, error: profileError } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+        if (profileError) {
+          setError(profileError.message);
+          return;
+        }
+
+        setProfile(prof as Profile);
+
+        const { data: convs, error: convError } = await supabase
+          .from('conversations')
+          .select('*, missions(departure, destination), demandeur:demandeur_id(full_name), skipper:skipper_id(full_name)')
+          .or(`demandeur_id.eq.${user.id},skipper_id.eq.${user.id}`)
+          .order('created_at', { ascending: false });
+
+        if (convError) {
+          setError(convError.message);
+          return;
+        }
+
+        setConversations((convs as unknown as Conversation[]) || []);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Impossible de charger la messagerie.');
+      } finally {
+        setLoading(false);
+      }
     })();
   }, []);
 
@@ -67,6 +88,7 @@ function MessagesInner() {
   }
 
   if (loading) return <div className="flex items-center gap-2 py-16 justify-center text-gray-500"><Loader2 className="animate-spin" size={20} /> Chargement...</div>;
+  if (error) return <main className="max-w-4xl mx-auto px-6 py-10"><div className="rounded-2xl p-5 bg-white border border-red-200 text-sm text-red-700">Impossible de charger la messagerie. {error}</div></main>;
   if (!profile) return <main className="max-w-md mx-auto px-6 py-10"><p>Connectez-vous pour accéder à la messagerie.</p></main>;
 
   return (

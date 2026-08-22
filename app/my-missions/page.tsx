@@ -16,18 +16,35 @@ function missionStatusLabel(status: Mission['status']) {
 
 export default function MyMissionsPage() {
   const [missions, setMissions] = useState<Mission[] | null>(null);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     const supabase = createClient();
     (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data } = await supabase
-        .from('missions')
-        .select('*')
-        .eq('poster_id', user.id)
-        .order('posted_at', { ascending: false });
-      setMissions((data as Mission[]) || []);
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          setMissions([]);
+          return;
+        }
+
+        const { data, error: fetchError } = await supabase
+          .from('missions')
+          .select('*')
+          .eq('poster_id', user.id)
+          .order('posted_at', { ascending: false });
+
+        if (fetchError) {
+          setError(fetchError.message);
+          setMissions([]);
+          return;
+        }
+
+        setMissions((data as Mission[]) || []);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Impossible de charger vos missions.');
+        setMissions([]);
+      }
     })();
   }, []);
 
@@ -38,6 +55,10 @@ export default function MyMissionsPage() {
 
       {missions === null ? (
         <div className="flex items-center gap-2 py-16 justify-center text-gray-500"><Loader2 className="animate-spin" size={20} /> Chargement...</div>
+      ) : error ? (
+        <div className="rounded-2xl p-5 bg-white border border-red-200 text-sm text-red-700">
+          Impossible de charger vos missions. {error}
+        </div>
       ) : missions.length === 0 ? (
         <EmptyState text="Vous n'avez pas encore publié de mission." actionLabel="Publier une mission" actionHref="/missions/new" />
       ) : (

@@ -13,20 +13,32 @@ const MISSION_TYPES = ['À la journée', 'À la semaine', 'Saisonnier', 'Convoya
 export default function MissionsPage() {
   const [missions, setMissions] = useState<Mission[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [filterType, setFilterType] = useState('Toutes');
   const [filterZone, setFilterZone] = useState('Toutes');
 
   useEffect(() => {
     const supabase = createClient();
-    supabase
-      .from('missions')
-      .select('*')
-      .eq('status', 'open')
-      .order('posted_at', { ascending: false })
-      .then(({ data }) => {
+    (async () => {
+      try {
+        const { data, error: fetchError } = await supabase
+          .from('missions')
+          .select('*')
+          .eq('status', 'open')
+          .order('posted_at', { ascending: false });
+
+        if (fetchError) {
+          setError(fetchError.message);
+          return;
+        }
+
         setMissions((data as Mission[]) || []);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Impossible de charger les missions.');
+      } finally {
         setLoading(false);
-      });
+      }
+    })();
   }, []);
 
   const filtered = missions.filter(
@@ -51,6 +63,10 @@ export default function MissionsPage() {
 
       {loading ? (
         <div className="flex items-center gap-2 py-16 justify-center text-gray-500"><Loader2 className="animate-spin" size={20} /> Chargement...</div>
+      ) : error ? (
+        <div className="rounded-2xl p-5 bg-white border border-red-200 text-sm text-red-700">
+          Impossible de charger les missions. {error}
+        </div>
       ) : filtered.length === 0 ? (
         <EmptyState text="Aucune mission pour l'instant." />
       ) : (

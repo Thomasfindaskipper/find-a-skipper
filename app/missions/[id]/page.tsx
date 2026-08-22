@@ -28,38 +28,57 @@ export default function MissionDetailPage() {
   const [mission, setMission] = useState<Mission | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [applyPhone, setApplyPhone] = useState('');
   const [applyMessage, setApplyMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
   const [applied, setApplied] = useState(false);
   const [existingApplication, setExistingApplication] = useState<Application | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
     (async () => {
-      const { data: missionData } = await supabase.from('missions').select('*').eq('id', id).single();
-      setMission(missionData as Mission | null);
-
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: profileData } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-        setProfile(profileData as Profile | null);
-        setApplyPhone((profileData as Profile | null)?.phone || '');
-
-        if ((profileData as Profile | null)?.role === 'skipper') {
-          const { data: app } = await supabase
-            .from('applications')
-            .select('*')
-            .eq('mission_id', id)
-            .eq('skipper_id', user.id)
-            .maybeSingle();
-          setExistingApplication((app as Application | null) || null);
+      try {
+        const { data: missionData, error: missionError } = await supabase.from('missions').select('*').eq('id', id).single();
+        if (missionError) {
+          setError(missionError.message);
+          return;
         }
+
+        setMission(missionData as Mission | null);
+
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: profileData, error: profileError } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+          if (profileError) {
+            setError(profileError.message);
+            return;
+          }
+
+          setProfile(profileData as Profile | null);
+          setApplyPhone((profileData as Profile | null)?.phone || '');
+
+          if ((profileData as Profile | null)?.role === 'skipper') {
+            const { data: app, error: appError } = await supabase
+              .from('applications')
+              .select('*')
+              .eq('mission_id', id)
+              .eq('skipper_id', user.id)
+              .maybeSingle();
+            if (appError) {
+              setError(appError.message);
+              return;
+            }
+            setExistingApplication((app as Application | null) || null);
+          }
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Impossible de charger le détail de la mission.');
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     })();
-  }, [id]);
+  }, [id, setError]);
 
   async function handleApply(e: React.FormEvent) {
     e.preventDefault();
@@ -86,6 +105,7 @@ export default function MissionDetailPage() {
   }
 
   if (loading) return <div className="flex items-center gap-2 py-16 justify-center text-gray-500"><Loader2 className="animate-spin" size={20} /> Chargement...</div>;
+  if (error) return <main className="max-w-lg mx-auto px-6 py-10"><div className="rounded-2xl p-5 bg-white border border-red-200 text-sm text-red-700">Impossible de charger le détail de la mission. {error}</div></main>;
   if (!mission) return <main className="max-w-lg mx-auto px-6 py-10"><p>Mission introuvable.</p></main>;
 
   return (

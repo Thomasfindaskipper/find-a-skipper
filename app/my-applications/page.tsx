@@ -15,18 +15,35 @@ function statusLabel(status: Application['status']) {
 
 export default function MyApplicationsPage() {
   const [rows, setRows] = useState<Application[] | null>(null);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     const supabase = createClient();
     (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data } = await supabase
-        .from('applications')
-        .select('*, missions(*)')
-        .eq('skipper_id', user.id)
-        .order('applied_at', { ascending: false });
-      setRows((data as unknown as Application[]) || []);
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          setRows([]);
+          return;
+        }
+
+        const { data, error: fetchError } = await supabase
+          .from('applications')
+          .select('*, missions(*)')
+          .eq('skipper_id', user.id)
+          .order('applied_at', { ascending: false });
+
+        if (fetchError) {
+          setError(fetchError.message);
+          setRows([]);
+          return;
+        }
+
+        setRows((data as unknown as Application[]) || []);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Impossible de charger vos candidatures.');
+        setRows([]);
+      }
     })();
   }, []);
 
@@ -37,6 +54,10 @@ export default function MyApplicationsPage() {
 
       {rows === null ? (
         <div className="flex items-center gap-2 py-16 justify-center text-gray-500"><Loader2 className="animate-spin" size={20} /> Chargement...</div>
+      ) : error ? (
+        <div className="rounded-2xl p-5 bg-white border border-red-200 text-sm text-red-700">
+          Impossible de charger vos candidatures. {error}
+        </div>
       ) : rows.length === 0 ? (
         <EmptyState text="Vous n'avez pas encore postulé à une mission." actionLabel="Voir les missions" actionHref="/missions" />
       ) : (
