@@ -7,6 +7,13 @@ import { createClient } from '@/lib/supabase/client';
 import { Badge, EmptyState } from '@/components/ui';
 import type { Mission } from '@/lib/database.types';
 
+function missionStatusLabel(status: Mission['status']) {
+  if (status === 'open') return 'Ouverte';
+  if (status === 'in_discussion') return 'En discussion';
+  if (status === 'filled') return 'Pourvue';
+  return 'Terminée';
+}
+
 export default function MyMissionsPage() {
   const [missions, setMissions] = useState<Mission[] | null>(null);
 
@@ -40,6 +47,7 @@ export default function MyMissionsPage() {
               <div className="mb-2"><Badge>{m.type}</Badge></div>
               <h3 className="font-bold text-[15px] mb-1">{m.departure}{m.destination ? ` → ${m.destination}` : ''}</h3>
               <div className="text-xs mb-3 text-gray-500">{m.zone} · {m.boat_type}</div>
+              <div className="text-xs mb-3 text-gray-500">Statut: {missionStatusLabel(m.status)}</div>
               <div className="flex items-center gap-1.5 text-sm font-semibold text-navy">
                 <Users size={15} /> {m.applicants_count || 0} candidature{(m.applicants_count || 0) !== 1 ? 's' : ''}
               </div>

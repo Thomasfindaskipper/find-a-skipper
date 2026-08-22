@@ -5,6 +5,8 @@
 
 export type Role = 'skipper' | 'owner' | 'broker' | 'charter_company' | 'admin';
 export type MissionType = 'À la journée' | 'À la semaine' | 'Saisonnier' | 'Convoyage' | 'Autre';
+export type MissionStatus = 'open' | 'in_discussion' | 'filled' | 'completed';
+export type ApplicationStatus = 'pending' | 'accepted' | 'rejected' | 'withdrawn';
 
 export interface Profile {
   id: string;
@@ -38,6 +40,7 @@ export interface Profile {
 export interface Mission {
   id: string;
   poster_id: string;
+  status: MissionStatus;
   type: MissionType;
   boat_type: string;
   zone: string;
@@ -56,6 +59,7 @@ export interface Application {
   id: string;
   mission_id: string;
   skipper_id: string;
+  status: ApplicationStatus;
   phone: string | null;
   message: string | null;
   applied_at: string;

@@ -6,7 +6,21 @@ import Link from 'next/link';
 import { ArrowLeft, MapPin, Ship, Calendar, CheckCircle2, Loader2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Field, TextInput, TextArea, Button, ErrorBanner, Badge } from '@/components/ui';
-import type { Mission, Profile } from '@/lib/database.types';
+import type { Application, Mission, Profile } from '@/lib/database.types';
+
+function missionStatusLabel(status: Mission['status']) {
+  if (status === 'open') return 'Ouverte';
+  if (status === 'in_discussion') return 'En discussion';
+  if (status === 'filled') return 'Pourvue';
+  return 'Terminée';
+}
+
+function applicationStatusLabel(status: Application['status']) {
+  if (status === 'pending') return 'Candidature envoyée';
+  if (status === 'accepted') return 'Candidature acceptée';
+  if (status === 'rejected') return 'Candidature refusée';
+  return 'Candidature retirée';
+}
 
 export default function MissionDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -19,6 +33,7 @@ export default function MissionDetailPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [applied, setApplied] = useState(false);
+  const [existingApplication, setExistingApplication] = useState<Application | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -31,6 +46,16 @@ export default function MissionDetailPage() {
         const { data: profileData } = await supabase.from('profiles').select('*').eq('id', user.id).single();
         setProfile(profileData as Profile | null);
         setApplyPhone((profileData as Profile | null)?.phone || '');
+
+        if ((profileData as Profile | null)?.role === 'skipper') {
+          const { data: app } = await supabase
+            .from('applications')
+            .select('*')
+            .eq('mission_id', id)
+            .eq('skipper_id', user.id)
+            .maybeSingle();
+          setExistingApplication((app as Application | null) || null);
+        }
       }
       setLoading(false);
     })();
@@ -41,18 +66,23 @@ export default function MissionDetailPage() {
     setError('');
     setSubmitting(true);
     const supabase = createClient();
-    const { error: appErr } = await supabase.from('applications').insert({
-      mission_id: id,
-      skipper_id: profile!.id,
-      phone: applyPhone,
-      message: applyMessage,
-    });
+    const { data: appData, error: appErr } = await supabase
+      .from('applications')
+      .insert({
+        mission_id: id,
+        skipper_id: profile!.id,
+        phone: applyPhone,
+        message: applyMessage,
+      })
+      .select('*')
+      .single();
     setSubmitting(false);
     if (appErr) {
       setError(appErr.code === '23505' ? 'Vous avez déjà postulé à cette mission.' : appErr.message);
       return;
     }
     setApplied(true);
+    setExistingApplication(appData as Application);
   }
 
   if (loading) return <div className="flex items-center gap-2 py-16 justify-center text-gray-500"><Loader2 className="animate-spin" size={20} /> Chargement...</div>;
@@ -79,6 +109,7 @@ export default function MissionDetailPage() {
               <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Rémunération</span>
               <span className="font-bold text-navy">{mission.compensation || 'Sur devis'}</span>
             </div>
+            <div className="text-xs text-gray-500 mt-2">Statut mission: {missionStatusLabel(mission.status)}</div>
           </div>
 
           {!profile ? (
@@ -87,6 +118,10 @@ export default function MissionDetailPage() {
             </Link>
           ) : profile.role !== 'skipper' ? (
             <p className="text-center text-sm text-gray-500">Seuls les comptes skipper peuvent postuler.</p>
+          ) : mission.status !== 'open' ? (
+            <p className="text-center text-sm text-gray-500">Cette mission n&apos;est plus ouverte aux candidatures.</p>
+          ) : existingApplication ? (
+            <p className="text-center text-sm text-gray-500">{applicationStatusLabel(existingApplication.status)}.</p>
           ) : (
             <form onSubmit={handleApply}>
               <ErrorBanner message={error} />

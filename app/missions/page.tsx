@@ -9,12 +9,21 @@ import type { Mission } from '@/lib/database.types';
 
 const ZONES = ['Méditerranée', 'Atlantique', 'Manche / Mer du Nord', 'Bretagne', 'Outre-mer'];
 const MISSION_TYPES = ['À la journée', 'À la semaine', 'Saisonnier', 'Convoyage', 'Autre'];
+const STATUS_OPTIONS = ['Toutes', 'Ouverte', 'En discussion', 'Pourvue', 'Terminée'] as const;
+
+function statusToLabel(status: Mission['status']) {
+  if (status === 'open') return 'Ouverte';
+  if (status === 'in_discussion') return 'En discussion';
+  if (status === 'filled') return 'Pourvue';
+  return 'Terminée';
+}
 
 export default function MissionsPage() {
   const [missions, setMissions] = useState<Mission[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterType, setFilterType] = useState('Toutes');
   const [filterZone, setFilterZone] = useState('Toutes');
+  const [filterStatus, setFilterStatus] = useState<(typeof STATUS_OPTIONS)[number]>('Toutes');
 
   useEffect(() => {
     const supabase = createClient();
@@ -29,7 +38,10 @@ export default function MissionsPage() {
   }, []);
 
   const filtered = missions.filter(
-    (m) => (filterType === 'Toutes' || m.type === filterType) && (filterZone === 'Toutes' || m.zone === filterZone)
+    (m) =>
+      (filterType === 'Toutes' || m.type === filterType) &&
+      (filterZone === 'Toutes' || m.zone === filterZone) &&
+      (filterStatus === 'Toutes' || statusToLabel(m.status) === filterStatus)
   );
 
   return (
@@ -43,6 +55,9 @@ export default function MissionsPage() {
         </Select>
         <Select value={filterZone} onChange={(e) => setFilterZone(e.target.value)} className="w-auto">
           <option>Toutes</option>{ZONES.map((z) => <option key={z}>{z}</option>)}
+        </Select>
+        <Select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as (typeof STATUS_OPTIONS)[number])} className="w-auto">
+          {STATUS_OPTIONS.map((s) => <option key={s}>{s}</option>)}
         </Select>
       </div>
 
@@ -65,6 +80,7 @@ export default function MissionsPage() {
                   <span className="font-bold text-navy">{m.compensation || 'Sur devis'}</span>
                   <span className="text-emerald-700 font-medium text-xs">● {m.applicants_count || 0} candidature{(m.applicants_count || 0) !== 1 ? 's' : ''}</span>
                 </div>
+                <div className="text-xs mt-2 text-gray-500">Statut: {statusToLabel(m.status)}</div>
               </div>
             </Link>
           ))}

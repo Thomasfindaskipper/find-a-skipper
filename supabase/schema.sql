@@ -110,6 +110,7 @@ create trigger on_auth_user_created
 create table public.missions (
   id uuid primary key default gen_random_uuid(),
   poster_id uuid not null references public.profiles(id) on delete cascade,
+  status text not null default 'open' check (status in ('open', 'in_discussion', 'filled', 'completed')),
   type text not null check (type in ('À la journée', 'À la semaine', 'Saisonnier', 'Convoyage', 'Autre')),
   boat_type text not null,
   zone text not null,
@@ -166,6 +167,7 @@ create table public.applications (
   id uuid primary key default gen_random_uuid(),
   mission_id uuid not null references public.missions(id) on delete cascade,
   skipper_id uuid not null references public.profiles(id) on delete cascade,
+  status text not null default 'pending' check (status in ('pending', 'accepted', 'rejected', 'withdrawn')),
   phone text,
   message text,
   applied_at timestamptz not null default now(),
@@ -186,7 +188,23 @@ create policy "Skippers can apply"
   with check (
     auth.uid() = skipper_id
     and exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'skipper')
+    and exists (select 1 from public.missions m where m.id = mission_id and m.status = 'open')
   );
+
+create policy "Mission owner or skipper can update application"
+  on public.applications for update
+  using (
+    auth.uid() = skipper_id
+    or auth.uid() = (select m.poster_id from public.missions m where m.id = mission_id)
+  )
+  with check (
+    auth.uid() = skipper_id
+    or auth.uid() = (select m.poster_id from public.missions m where m.id = mission_id)
+  );
+
+create unique index applications_single_accepted_per_mission_idx
+  on public.applications (mission_id)
+  where status = 'accepted';
 
 create function public.increment_applicants_count()
 returns trigger
@@ -202,6 +220,82 @@ $$;
 create trigger on_application_created
   after insert on public.applications
   for each row execute function public.increment_applicants_count();
+
+create function public.enforce_application_status_transition()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  mission_owner uuid;
+begin
+  if new.status = old.status then
+    return new;
+  end if;
+
+  if new.mission_id <> old.mission_id
+     or new.skipper_id <> old.skipper_id
+     or coalesce(new.phone, '') <> coalesce(old.phone, '')
+     or coalesce(new.message, '') <> coalesce(old.message, '')
+     or new.applied_at <> old.applied_at then
+    raise exception 'Only status can be updated on applications';
+  end if;
+
+  select m.poster_id into mission_owner
+  from public.missions m
+  where m.id = old.mission_id;
+
+  if auth.uid() is null then
+    raise exception 'Authentication required for status transition';
+  end if;
+
+  if auth.uid() = old.skipper_id then
+    if not (old.status = 'pending' and new.status = 'withdrawn') then
+      raise exception 'Skipper can only move pending application to withdrawn';
+    end if;
+  elsif auth.uid() = mission_owner then
+    if not (old.status = 'pending' and new.status in ('accepted', 'rejected')) then
+      raise exception 'Owner can only accept or reject a pending application';
+    end if;
+  else
+    raise exception 'Not allowed to change this application status';
+  end if;
+
+  return new;
+end;
+$$;
+
+create trigger on_application_status_update
+  before update on public.applications
+  for each row execute function public.enforce_application_status_transition();
+
+create function public.sync_mission_status_from_application()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  if tg_op = 'UPDATE' and new.status = 'accepted' and old.status <> 'accepted' then
+    update public.missions
+    set status = 'filled'
+    where id = new.mission_id
+      and status in ('open', 'in_discussion');
+  end if;
+
+  if tg_op = 'INSERT' and new.status = 'accepted' then
+    update public.missions
+    set status = 'filled'
+    where id = new.mission_id
+      and status in ('open', 'in_discussion');
+  end if;
+
+  return new;
+end;
+$$;
+
+create trigger on_application_status_sync_mission
+  after insert or update on public.applications
+  for each row execute function public.sync_mission_status_from_application();
 
 -- ---------- 4. CONVERSATIONS & MESSAGES ----------
 create table public.conversations (
@@ -236,6 +330,25 @@ create policy "Demandeur can start a conversation"
         and a.skipper_id = skipper_id
     )
   );
+
+create function public.sync_mission_status_from_conversation()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  update public.missions
+  set status = 'in_discussion'
+  where id = new.mission_id
+    and status = 'open';
+
+  return new;
+end;
+$$;
+
+create trigger on_conversation_created_sync_mission
+  after insert on public.conversations
+  for each row execute function public.sync_mission_status_from_conversation();
 
 create table public.messages (
   id uuid primary key default gen_random_uuid(),

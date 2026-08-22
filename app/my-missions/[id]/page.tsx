@@ -4,8 +4,22 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Phone, Loader2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { Badge, Button, EmptyState } from '@/components/ui';
+import { Badge, Button, EmptyState, ErrorBanner } from '@/components/ui';
 import type { Application, Mission } from '@/lib/database.types';
+
+function applicationStatusLabel(status: Application['status']) {
+  if (status === 'pending') return 'En attente';
+  if (status === 'accepted') return 'Acceptée';
+  if (status === 'rejected') return 'Refusée';
+  return 'Retirée';
+}
+
+function missionStatusLabel(status: Mission['status']) {
+  if (status === 'open') return 'Ouverte';
+  if (status === 'in_discussion') return 'En discussion';
+  if (status === 'filled') return 'Pourvue';
+  return 'Terminée';
+}
 
 export default function MissionApplicantsPage() {
   const { id } = useParams<{ id: string }>();
@@ -14,6 +28,8 @@ export default function MissionApplicantsPage() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
   const [contactingId, setContactingId] = useState<string | null>(null);
+  const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     const supabase = createClient();
@@ -33,7 +49,7 @@ export default function MissionApplicantsPage() {
     setContactingId(skipperId);
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) { setContactingId(null); return; }
 
     const { data: existing } = await supabase
       .from('conversations')
@@ -55,6 +71,36 @@ export default function MissionApplicantsPage() {
     router.push(`/messages?conversation=${convId}`);
   }
 
+  async function updateApplicationStatus(applicationId: string, status: 'accepted' | 'rejected') {
+    setError('');
+    setUpdatingStatusId(applicationId);
+    const supabase = createClient();
+
+    const { data, error: updErr } = await supabase
+      .from('applications')
+      .update({ status })
+      .eq('id', applicationId)
+      .select('*')
+      .single();
+
+    setUpdatingStatusId(null);
+
+    if (updErr) {
+      setError(updErr.message);
+      return;
+    }
+
+    setApplications((prev) => prev.map((a) => (a.id === applicationId ? { ...a, ...(data as Application) } : a)));
+    const { data: missionData } = await supabase
+      .from('missions')
+      .select('*')
+      .eq('id', id)
+      .single();
+    if (missionData) {
+      setMission(missionData as Mission);
+    }
+  }
+
   if (loading) return <div className="flex items-center gap-2 py-16 justify-center text-gray-500"><Loader2 className="animate-spin" size={20} /> Chargement...</div>;
   if (!mission) return <main className="max-w-lg mx-auto px-6 py-10"><p>Mission introuvable.</p></main>;
 
@@ -66,6 +112,8 @@ export default function MissionApplicantsPage() {
       <Badge>{mission.type}</Badge>
       <h1 className="font-display text-2xl font-bold mt-3 mb-1">{mission.departure}{mission.destination ? ` → ${mission.destination}` : ''}</h1>
       <p className="text-sm mb-6 text-gray-500">{applications.length} candidature{applications.length !== 1 ? 's' : ''} reçue{applications.length !== 1 ? 's' : ''}</p>
+      <p className="text-xs mb-6 text-gray-500">Statut mission: {missionStatusLabel(mission.status)}</p>
+      <ErrorBanner message={error} />
 
       {applications.length === 0 ? (
         <EmptyState text="Aucune candidature pour l'instant." />
@@ -76,9 +124,31 @@ export default function MissionApplicantsPage() {
               <h4 className="font-bold text-[15px] mb-2">{a.profiles?.full_name}</h4>
               {a.phone && <div className="flex items-center gap-1.5 text-xs mb-3 text-gray-500"><Phone size={12} /> {a.phone}</div>}
               {a.message && <p className="text-sm mb-3">{a.message}</p>}
-              <Button onClick={() => contact(a.skipper_id)} disabled={contactingId === a.skipper_id} className="text-sm px-4 py-2">
-                {contactingId === a.skipper_id ? 'Ouverture...' : 'Contacter'}
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-semibold px-3 py-1.5 rounded-full bg-lightblue text-navy">{applicationStatusLabel(a.status)}</span>
+                {a.status === 'pending' && (
+                  <>
+                    <Button
+                      onClick={() => updateApplicationStatus(a.id, 'accepted')}
+                      disabled={updatingStatusId === a.id}
+                      className="text-sm px-4 py-2"
+                    >
+                      Accepter
+                    </Button>
+                    <Button
+                      onClick={() => updateApplicationStatus(a.id, 'rejected')}
+                      disabled={updatingStatusId === a.id}
+                      variant="outline"
+                      className="text-sm px-4 py-2"
+                    >
+                      Refuser
+                    </Button>
+                  </>
+                )}
+                <Button onClick={() => contact(a.skipper_id)} disabled={contactingId === a.skipper_id} className="text-sm px-4 py-2">
+                  {contactingId === a.skipper_id ? 'Ouverture...' : 'Contacter'}
+                </Button>
+              </div>
             </div>
           ))}
         </div>
