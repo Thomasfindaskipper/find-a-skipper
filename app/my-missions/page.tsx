@@ -9,9 +9,9 @@ import type { Mission } from '@/lib/database.types';
 
 function missionStatusLabel(status: Mission['status']) {
   if (status === 'open') return 'Ouverte';
-  if (status === 'in_discussion') return 'En discussion';
-  if (status === 'filled') return 'Pourvue';
-  return 'Terminée';
+  if (status === 'assigned') return 'Assignée';
+  if (status === 'completed') return 'Terminée';
+  return 'Annulée';
 }
 
 export default function MyMissionsPage() {

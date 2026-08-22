@@ -26,6 +26,7 @@ export default function NewMissionPage() {
   const [startDate, setStartDate] = useState('');
   const [duration, setDuration] = useState('');
   const [compensation, setCompensation] = useState('');
+  const [requirements, setRequirements] = useState('');
   const [description, setDescription] = useState('');
 
   useEffect(() => {
@@ -61,6 +62,7 @@ export default function NewMissionPage() {
         start_date: startDate,
         duration: duration || null,
         compensation: compensation || null,
+        requirements: requirements || null,
         description: description || null,
       })
       .select()
@@ -97,6 +99,9 @@ export default function NewMissionPage() {
         </div>
         <Field label="Rémunération" hint="Laissez vide si sur devis">
           <TextInput value={compensation} onChange={(e) => setCompensation(e.target.value)} placeholder="Ex. 220 €" />
+        </Field>
+        <Field label="Exigences particulières">
+          <TextArea value={requirements} onChange={(e) => setRequirements(e.target.value)} placeholder="Permis, expérience, langues, disponibilités..." />
         </Field>
         <Field label="Description">
           <TextArea value={description} onChange={(e) => setDescription(e.target.value)} />

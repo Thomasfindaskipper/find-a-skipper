@@ -10,16 +10,16 @@ import type { Application, Mission, Profile } from '@/lib/database.types';
 
 function missionStatusLabel(status: Mission['status']) {
   if (status === 'open') return 'Ouverte';
-  if (status === 'in_discussion') return 'En discussion';
-  if (status === 'filled') return 'Pourvue';
-  return 'Terminée';
+  if (status === 'assigned') return 'Assignée';
+  if (status === 'completed') return 'Terminée';
+  return 'Annulée';
 }
 
 function applicationStatusLabel(status: Application['status']) {
   if (status === 'pending') return 'Candidature envoyée';
   if (status === 'accepted') return 'Candidature acceptée';
   if (status === 'rejected') return 'Candidature refusée';
-  return 'Candidature retirée';
+  return 'Candidature';
 }
 
 export default function MissionDetailPage() {
@@ -97,6 +97,9 @@ export default function MissionDetailPage() {
       {!applied ? (
         <>
           <Badge>{mission.type}</Badge>
+          <span className="ml-2 text-xs font-semibold px-2.5 py-1 rounded-full bg-lightblue text-navy">
+            {missionStatusLabel(mission.status)}
+          </span>
           <h1 className="font-display text-2xl font-bold mt-3 mb-2">{mission.departure}{mission.destination ? ` → ${mission.destination}` : ''}</h1>
           <div className="flex flex-wrap gap-4 text-sm mb-6 text-gray-500">
             <span className="flex items-center gap-1.5"><MapPin size={14} /> {mission.zone}</span>
@@ -104,6 +107,12 @@ export default function MissionDetailPage() {
             <span className="flex items-center gap-1.5"><Calendar size={14} /> {mission.start_date} {mission.duration && `· ${mission.duration}`}</span>
           </div>
           {mission.description && <p className="mb-6 text-sm leading-relaxed">{mission.description}</p>}
+          {mission.requirements && (
+            <div className="rounded-2xl p-5 mb-6 bg-white border border-navy/[0.08]">
+              <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Exigences</div>
+              <p className="text-sm leading-relaxed text-anthracite">{mission.requirements}</p>
+            </div>
+          )}
           <div className="rounded-2xl p-5 mb-6 bg-white border border-navy/[0.08]">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Rémunération</span>
