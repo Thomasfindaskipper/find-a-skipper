@@ -40,6 +40,8 @@ export interface Profile {
   hourly_rate: string | null;
   availability_note: string | null;
   identity_verified: boolean;
+  onboarding_step: 'role_details' | 'done' | null;
+  onboarding_completed_at: string | null;
 
   created_at: string;
 }

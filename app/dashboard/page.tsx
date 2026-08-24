@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { onboardingRequired } from '@/lib/onboarding';
 
 export default async function DashboardRouter() {
   const supabase = await createClient();
@@ -13,6 +14,8 @@ export default async function DashboardRouter() {
   .single();
 
   if (!profile) redirect('/login');
+
+  if (onboardingRequired(profile)) redirect('/onboarding');
 
   if (profile.role === 'skipper') redirect('/dashboard/skipper');
   if (profile.role === 'admin') redirect('/dashboard/admin');

@@ -36,6 +36,8 @@ create table public.profiles (
   hourly_rate text,
   availability_note text,
   identity_verified boolean not null default false,
+  onboarding_step text check (onboarding_step in ('role_details', 'done')),
+  onboarding_completed_at timestamptz,
 
   created_at timestamptz not null default now()
 );
@@ -81,7 +83,8 @@ as $$
 begin
   insert into public.profiles (
     id, role, full_name, phone, company_name, fleet_size, city,
-    experience_years, zones, boat_types, languages, permits, avatar_url, hourly_rate, availability_note, bio
+    experience_years, zones, boat_types, languages, permits, avatar_url, hourly_rate, availability_note, bio,
+    onboarding_step, onboarding_completed_at
   )
   values (
     new.id,
@@ -99,7 +102,9 @@ begin
     new.raw_user_meta_data->>'avatar_url',
     new.raw_user_meta_data->>'hourly_rate',
     new.raw_user_meta_data->>'availability_note',
-    new.raw_user_meta_data->>'bio'
+    new.raw_user_meta_data->>'bio',
+    'role_details',
+    null
   );
   return new;
 end;

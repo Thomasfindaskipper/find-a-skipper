@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Field, TextInput, Button, ErrorBanner } from '@/components/ui';
+import { onboardingRequired } from '@/lib/onboarding';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -22,7 +23,12 @@ export default function LoginPage() {
       return;
     }
 
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+    const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+    if (profile && onboardingRequired(profile)) {
+      router.replace('/onboarding');
+      return;
+    }
+
     const target = profile?.role === 'skipper' ? '/dashboard/skipper' : profile?.role === 'admin' ? '/dashboard/admin' : '/dashboard/demandeur';
     router.replace(searchParams.get('next') || target);
   }

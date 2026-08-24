@@ -1,9 +1,10 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { getSupabaseEnv } from '@/lib/supabase/env';
+import { onboardingRequired } from '@/lib/onboarding';
 
 const PUBLIC_PATHS = ['/','/login', '/signup', '/forgot-password', '/reset-password', '/auth/callback', '/skippers', '/missions'];
-const PRIVATE_PATHS = ['/dashboard', '/profile', '/messages', '/notifications', '/missions/new', '/my-missions', '/my-applications'];
+const PRIVATE_PATHS = ['/dashboard', '/onboarding', '/profile', '/messages', '/notifications', '/missions/new', '/my-missions', '/my-applications'];
 
 function isPublicPath(pathname: string) {
   return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
@@ -49,7 +50,11 @@ const {
   }
 
   if (user && (pathname === '/login' || pathname === '/signup' || pathname.startsWith('/forgot-password') || pathname.startsWith('/reset-password'))) {
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+    const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+    if (profile && onboardingRequired(profile)) {
+      return NextResponse.redirect(new URL('/onboarding', request.url));
+    }
+
     const target = profile?.role === 'skipper' ? '/dashboard/skipper' : profile?.role === 'admin' ? '/dashboard/admin' : '/dashboard/demandeur';
     return NextResponse.redirect(new URL(target, request.url));
   }
