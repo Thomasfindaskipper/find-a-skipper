@@ -14,6 +14,8 @@ export type NotificationType =
   | 'mission_assigned'
   | 'mission_status_changed'
   | 'message_new';
+export type VerificationStatus = 'draft' | 'submitted' | 'approved' | 'rejected';
+export type VerificationDocType = 'identity' | 'license' | 'certificate' | 'company' | 'ownership' | 'mandate' | 'other';
 
 export interface Profile {
   id: string;
@@ -120,6 +122,31 @@ export interface Notification {
   type: NotificationType;
   payload: Record<string, unknown>;
   read: boolean;
+  created_at: string;
+}
+
+export interface VerificationRequest {
+  id: string;
+  user_id: string;
+  status: VerificationStatus;
+  submitted_at: string | null;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+  rejection_reason: string | null;
+  created_at: string;
+  updated_at: string;
+  profiles?: Pick<Profile, 'id' | 'full_name' | 'role' | 'identity_verified'>;
+  verification_documents?: VerificationDocument[];
+}
+
+export interface VerificationDocument {
+  id: string;
+  request_id: string;
+  user_id: string;
+  doc_type: VerificationDocType;
+  storage_path: string;
+  original_filename: string | null;
+  mime_type: string | null;
   created_at: string;
 }
 

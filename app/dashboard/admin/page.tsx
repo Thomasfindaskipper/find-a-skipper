@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { ShieldAlert } from 'lucide-react';
 import { createClient } from '@/lib/supabase/server';
+import Link from 'next/link';
 
 export default async function AdminDashboard() {
   const supabase = await createClient();
@@ -18,6 +19,11 @@ export default async function AdminDashboard() {
         Cette interface n&apos;est pas encore développée. Le schéma de la base de données est déjà prêt pour :
         vérifier les skippers, gérer les signalements, mettre en avant des missions, et consulter des statistiques.
       </p>
+      <div className="mt-6">
+        <Link href="/dashboard/admin/verifications" className="inline-flex items-center px-4 py-2 rounded-lg bg-navy text-white text-sm font-semibold">
+          Revoir les demandes de verification
+        </Link>
+      </div>
     </main>
   );
 }
