@@ -7,12 +7,12 @@ import { Button, EmptyState } from '@/components/ui';
 import type { Notification } from '@/lib/database.types';
 
 function labelForType(type: string) {
-  if (type === 'application_created') return 'Nouvelle candidature';
+  if (type === 'new_application') return 'Nouvelle candidature';
   if (type === 'application_accepted') return 'Candidature acceptée';
   if (type === 'application_rejected') return 'Candidature refusée';
   if (type === 'mission_assigned') return 'Mission assignée';
   if (type === 'mission_status_changed') return 'Statut mission modifié';
-  if (type === 'message_new') return 'Nouveau message';
+  if (type === 'new_message') return 'Nouveau message';
   return 'Notification';
 }
 
@@ -21,7 +21,7 @@ function messageForNotification(n: Notification) {
   const missionId = typeof payload.mission_id === 'string' ? payload.mission_id : null;
   const status = typeof payload.new_status === 'string' ? payload.new_status : null;
 
-  if (n.type === 'application_created') {
+  if (n.type === 'new_application') {
     return missionId ? `Un skipper a postule a votre mission (${missionId.slice(0, 8)}...).` : 'Un skipper a postule a votre mission.';
   }
   if (n.type === 'application_accepted') {
@@ -36,7 +36,7 @@ function messageForNotification(n: Notification) {
   if (n.type === 'mission_status_changed') {
     return status ? `Le statut de la mission est maintenant ${status}.` : 'Le statut de la mission a change.';
   }
-  if (n.type === 'message_new') {
+  if (n.type === 'new_message') {
     return 'Vous avez recu un nouveau message.';
   }
   return 'Nouvelle notification.';

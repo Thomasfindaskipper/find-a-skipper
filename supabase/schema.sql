@@ -297,7 +297,7 @@ begin
     insert into public.notifications (user_id, type, payload)
     values (
       mission_owner,
-      'application_created',
+      'new_application',
       jsonb_build_object(
         'mission_id', new.mission_id,
         'application_id', new.id,
@@ -496,7 +496,16 @@ alter table public.conversations enable row level security;
 
 create policy "Participants can read their conversations"
   on public.conversations for select
-  using (auth.uid() = demandeur_id or auth.uid() = skipper_id);
+  using (
+    (auth.uid() = demandeur_id or auth.uid() = skipper_id)
+    and exists (
+      select 1
+      from public.applications a
+      where a.mission_id = conversations.mission_id
+        and a.skipper_id = conversations.skipper_id
+        and a.status = 'accepted'
+    )
+  );
 
 create policy "Demandeur can start a conversation"
   on public.conversations for insert
@@ -505,14 +514,14 @@ create policy "Demandeur can start a conversation"
     and exists (
       select 1
       from public.missions m
-      where m.id = mission_id
+      where m.id = conversations.mission_id
         and m.poster_id = auth.uid()
     )
     and exists (
       select 1
       from public.applications a
-      where a.mission_id = mission_id
-        and a.skipper_id = skipper_id
+      where a.mission_id = conversations.mission_id
+        and a.skipper_id = conversations.skipper_id
         and a.status = 'accepted'
     )
   );
@@ -545,9 +554,17 @@ create policy "Participants can read messages"
   on public.messages for select
   using (
     exists (
-      select 1 from public.conversations c
+      select 1
+      from public.conversations c
       where c.id = conversation_id
         and (auth.uid() = c.demandeur_id or auth.uid() = c.skipper_id)
+        and exists (
+          select 1
+          from public.applications a
+          where a.mission_id = c.mission_id
+            and a.skipper_id = c.skipper_id
+            and a.status = 'accepted'
+        )
     )
   );
 
@@ -559,6 +576,13 @@ create policy "Participants can send messages"
       select 1 from public.conversations c
       where c.id = conversation_id
         and (auth.uid() = c.demandeur_id or auth.uid() = c.skipper_id)
+        and exists (
+          select 1
+          from public.applications a
+          where a.mission_id = c.mission_id
+            and a.skipper_id = c.skipper_id
+            and a.status = 'accepted'
+        )
     )
   );
 
@@ -592,7 +616,7 @@ begin
     insert into public.notifications (user_id, type, payload)
     values (
       recipient_id,
-      'message_new',
+      'new_message',
       jsonb_build_object(
         'conversation_id', new.conversation_id,
         'mission_id', conv_mission,

@@ -8,12 +8,12 @@ export type MissionType = 'À la journée' | 'À la semaine' | 'Saisonnier' | 'C
 export type MissionStatus = 'open' | 'assigned' | 'completed' | 'cancelled';
 export type ApplicationStatus = 'pending' | 'accepted' | 'rejected';
 export type NotificationType =
-  | 'application_created'
+  | 'new_application'
   | 'application_accepted'
   | 'application_rejected'
   | 'mission_assigned'
   | 'mission_status_changed'
-  | 'message_new';
+  | 'new_message';
 export type VerificationStatus = 'draft' | 'submitted' | 'approved' | 'rejected';
 export type VerificationDocType = 'identity' | 'license' | 'certificate' | 'company' | 'ownership' | 'mandate' | 'other';
 

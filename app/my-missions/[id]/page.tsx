@@ -56,6 +56,20 @@ export default function MissionApplicantsPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setContactingId(null); return; }
 
+    const { data: acceptedApp, error: appError } = await supabase
+      .from('applications')
+      .select('id')
+      .eq('mission_id', id)
+      .eq('skipper_id', skipperId)
+      .eq('status', 'accepted')
+      .maybeSingle();
+
+    if (appError || !acceptedApp) {
+      setError(appError?.message || 'La messagerie est disponible uniquement apres acceptation de la candidature.');
+      setContactingId(null);
+      return;
+    }
+
     const { data: existing } = await supabase
       .from('conversations')
       .select('id')

@@ -16,7 +16,7 @@ begin
     insert into public.notifications (user_id, type, payload)
     values (
       mission_owner,
-      'application_created',
+      'new_application',
       jsonb_build_object(
         'mission_id', new.mission_id,
         'application_id', new.id,
@@ -141,7 +141,7 @@ begin
     insert into public.notifications (user_id, type, payload)
     values (
       recipient_id,
-      'message_new',
+      'new_message',
       jsonb_build_object(
         'conversation_id', new.conversation_id,
         'mission_id', conv_mission,
