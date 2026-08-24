@@ -34,6 +34,7 @@ export default function Nav({ profile }: { profile: Profile | null }) {
               { href: '/missions/new', label: 'Publier une mission' },
               { href: '/my-missions', label: 'Mes missions' },
             ]),
+        { href: '/notifications', label: 'Notifications' },
         { href: '/messages', label: 'Messages' },
         { href: '/profile', label: 'Mon profil' },
       ]

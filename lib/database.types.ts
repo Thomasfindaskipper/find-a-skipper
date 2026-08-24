@@ -7,6 +7,13 @@ export type Role = 'skipper' | 'owner' | 'broker' | 'charter_company' | 'admin';
 export type MissionType = 'À la journée' | 'À la semaine' | 'Saisonnier' | 'Convoyage' | 'Autre';
 export type MissionStatus = 'open' | 'assigned' | 'completed' | 'cancelled';
 export type ApplicationStatus = 'pending' | 'accepted' | 'rejected';
+export type NotificationType =
+  | 'application_created'
+  | 'application_accepted'
+  | 'application_rejected'
+  | 'mission_assigned'
+  | 'mission_status_changed'
+  | 'message_new';
 
 export interface Profile {
   id: string;
@@ -108,7 +115,7 @@ export interface Review {
 export interface Notification {
   id: string;
   user_id: string;
-  type: string;
+  type: NotificationType;
   payload: Record<string, unknown>;
   read: boolean;
   created_at: string;
