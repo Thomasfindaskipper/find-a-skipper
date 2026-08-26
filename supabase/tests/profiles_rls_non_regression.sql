@@ -54,9 +54,7 @@ BEGIN
     AND policyname = 'Users can update their own profile';
 
     IF strict_update_check IS NULL
-      OR strict_update_check NOT ILIKE '%role = (%'
-      OR strict_update_check NOT ILIKE '%from profiles p%'
-      OR strict_update_check NOT ILIKE '%p.id = auth.uid()%'
+      OR strict_update_check NOT ILIKE '%profile_user_update_fields_unchanged%'
       OR strict_update_check NOT ILIKE '%identity_verified%' THEN
     RAISE EXCEPTION 'Strict update policy for profiles is missing role/identity locks';
   END IF;
@@ -72,6 +70,11 @@ BEGIN
     RAISE EXCEPTION 'Admins update policy must define both USING and WITH CHECK';
   END IF;
 
+  IF admin_update_using NOT ILIKE '%is_admin(auth.uid())%'
+     OR admin_update_check NOT ILIKE '%is_admin(auth.uid())%' THEN
+    RAISE EXCEPTION 'Admins update policy must rely on is_admin(auth.uid())';
+  END IF;
+
   SELECT qual
   INTO admin_read_using
   FROM pg_policies
@@ -81,5 +84,9 @@ BEGIN
 
   IF admin_read_using IS NULL THEN
     RAISE EXCEPTION 'Admins read-all profiles policy is missing';
+  END IF;
+
+  IF admin_read_using NOT ILIKE '%is_admin(auth.uid())%' THEN
+    RAISE EXCEPTION 'Admins read-all profiles policy must rely on is_admin(auth.uid())';
   END IF;
 END $$;

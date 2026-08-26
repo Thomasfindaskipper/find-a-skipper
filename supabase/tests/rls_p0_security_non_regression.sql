@@ -17,9 +17,7 @@ BEGIN
     RAISE EXCEPTION 'Missing WITH CHECK for policy Users can update their own profile';
   END IF;
 
-  IF profile_with_check NOT ILIKE '%role = (%'
-     OR profile_with_check NOT ILIKE '%from profiles p%'
-     OR profile_with_check NOT ILIKE '%p.id = auth.uid()%' THEN
+  IF profile_with_check NOT ILIKE '%profile_user_update_fields_unchanged%' THEN
     RAISE EXCEPTION 'profiles update policy does not lock role';
   END IF;
 
