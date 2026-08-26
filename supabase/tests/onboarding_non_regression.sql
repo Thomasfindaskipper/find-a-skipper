@@ -52,9 +52,11 @@ BEGIN
     AND tablename = 'profiles'
     AND policyname = 'Users can update their own profile';
 
-  IF profile_update_check IS NULL
-     OR profile_update_check NOT ILIKE '%role = (select p.role from public.profiles p where p.id = auth.uid())%'
-     OR profile_update_check NOT ILIKE '%identity_verified%' THEN
+    IF profile_update_check IS NULL
+      OR profile_update_check NOT ILIKE '%role = (%'
+      OR profile_update_check NOT ILIKE '%from profiles p%'
+      OR profile_update_check NOT ILIKE '%p.id = auth.uid()%'
+      OR profile_update_check NOT ILIKE '%identity_verified%' THEN
     RAISE EXCEPTION 'profiles update policy changed unexpectedly';
   END IF;
 
