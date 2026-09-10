@@ -3,12 +3,33 @@
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Send, Loader2 } from 'lucide-react';
+import { useLocale } from '@/components/LocaleProvider';
+import { getExtraCopy } from '@/lib/i18n/extra';
 import { createClient } from '@/lib/supabase/client';
+import { buildVerifyEmailPath, isEmailVerified } from '@/lib/auth';
 import { EmptyState, initials } from '@/components/ui';
 import type { Conversation, Message, Profile } from '@/lib/database.types';
 
+function upsertMessage(prev: Message[], incoming: Message) {
+  if (prev.some((msg) => msg.id === incoming.id)) return prev;
+
+  const optimisticIndex = prev.findIndex(
+    (msg) => msg.id.startsWith('tmp-') && msg.sender_id === incoming.sender_id && msg.text === incoming.text
+  );
+
+  if (optimisticIndex >= 0) {
+    const next = [...prev];
+    next[optimisticIndex] = incoming;
+    return next;
+  }
+
+  return [...prev, incoming];
+}
+
 function MessagesInner() {
   const params = useSearchParams();
+  const { copy, locale } = useLocale();
+  const extra = getExtraCopy(locale);
   const preselected = params.get('conversation');
 
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -17,6 +38,7 @@ function MessagesInner() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState('');
   const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -29,6 +51,10 @@ function MessagesInner() {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
           setLoading(false);
+          return;
+        }
+        if (!isEmailVerified(user)) {
+          setError(`${copy.verifyEmail.description} ${buildVerifyEmailPath(user.email || null, '/messages')}`);
           return;
         }
 
@@ -44,7 +70,8 @@ function MessagesInner() {
           .from('conversations')
           .select('*, missions(departure, destination), demandeur:demandeur_id(full_name), skipper:skipper_id(full_name)')
           .or(`demandeur_id.eq.${user.id},skipper_id.eq.${user.id}`)
-          .order('created_at', { ascending: false });
+          .order('created_at', { ascending: false })
+          .limit(50);
 
         if (convError) {
           setError(convError.message);
@@ -53,27 +80,64 @@ function MessagesInner() {
 
         setConversations((convs as unknown as Conversation[]) || []);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Impossible de charger la messagerie.');
+        setError(err instanceof Error ? err.message : extra.errors.loadMessages);
       } finally {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [copy.verifyEmail.description, extra.errors.loadMessages]);
 
   useEffect(() => {
-    if (!activeId) return;
+    if (!activeId || !profile) return;
     const supabase = createClient();
-    supabase.from('messages').select('*').eq('conversation_id', activeId).order('created_at', { ascending: true })
-      .then(({ data }) => setMessages((data as Message[]) || []));
+    (async () => {
+      const { data: conversation, error: conversationError } = await supabase
+        .from('conversations')
+        .select('id')
+        .eq('id', activeId)
+        .or(`demandeur_id.eq.${profile.id},skipper_id.eq.${profile.id}`)
+        .maybeSingle();
+
+      if (conversationError || !conversation) {
+        setError(conversationError?.message || copy.messages.stale);
+        setActiveId(null);
+        setMessages([]);
+        return;
+      }
+
+      const { data: msgs, error: msgError } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('conversation_id', activeId)
+        .order('created_at', { ascending: true });
+
+      if (msgError) {
+        setError(msgError.message);
+        return;
+      }
+
+      setError('');
+      setMessages((msgs as Message[]) || []);
+    })();
 
     const channel = supabase
       .channel(`conv-${activeId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${activeId}` }, (payload) => {
-        setMessages((prev) => [...prev, payload.new as Message]);
+        setMessages((prev) => upsertMessage(prev, payload.new as Message));
       })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
+  }, [activeId, copy.messages.stale, profile]);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (activeId) {
+      url.searchParams.set('conversation', activeId);
+    } else {
+      url.searchParams.delete('conversation');
+    }
+    window.history.replaceState({}, '', `${url.pathname}${url.search}`);
   }, [activeId]);
 
   useEffect(() => { scrollRef.current?.scrollTo(0, scrollRef.current.scrollHeight); }, [messages]);
@@ -83,19 +147,73 @@ function MessagesInner() {
     if (!draft.trim() || !activeId || !profile) return;
     const supabase = createClient();
     const text = draft.trim();
+    setSending(true);
+    setError('');
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user || !isEmailVerified(user)) {
+      setSending(false);
+      setError(copy.messages.verifyFirst);
+      return;
+    }
+
+    const { data: conversation, error: conversationError } = await supabase
+      .from('conversations')
+      .select('id')
+      .eq('id', activeId)
+      .or(`demandeur_id.eq.${profile.id},skipper_id.eq.${profile.id}`)
+      .maybeSingle();
+
+    if (conversationError || !conversation) {
+      setSending(false);
+      setError(conversationError?.message || copy.messages.stale);
+      return;
+    }
+
+    const optimisticId = `tmp-${Date.now()}`;
+    const optimisticMessage: Message = {
+      id: optimisticId,
+      conversation_id: activeId,
+      sender_id: profile.id,
+      text,
+      created_at: new Date().toISOString(),
+    };
+
+    setMessages((prev) => [...prev, optimisticMessage]);
     setDraft('');
-    await supabase.from('messages').insert({ conversation_id: activeId, sender_id: profile.id, text });
+    const { data: insertedMessage, error: insertError } = await supabase
+      .from('messages')
+      .insert({ conversation_id: activeId, sender_id: profile.id, text })
+      .select('*')
+      .single();
+
+    setSending(false);
+
+    if (insertError) {
+      setError(insertError.message);
+      setMessages((prev) => prev.filter((msg) => msg.id !== optimisticId));
+      setDraft(text);
+      return;
+    }
+
+    if (insertedMessage) {
+      setMessages((prev) => upsertMessage(prev.filter((msg) => msg.id !== optimisticId), insertedMessage as Message));
+    }
   }
 
-  if (loading) return <div className="flex items-center gap-2 py-16 justify-center text-gray-500"><Loader2 className="animate-spin" size={20} /> Chargement...</div>;
-  if (error) return <main className="max-w-4xl mx-auto px-6 py-10"><div className="rounded-2xl p-5 bg-white border border-red-200 text-sm text-red-700">Impossible de charger la messagerie. {error}</div></main>;
-  if (!profile) return <main className="max-w-md mx-auto px-6 py-10"><p>Connectez-vous pour accéder à la messagerie.</p></main>;
+  if (loading) return <div className="flex items-center gap-2 py-16 justify-center text-gray-500"><Loader2 className="animate-spin" size={20} /> {copy.common.loading}</div>;
+  if (!profile) return <main className="max-w-md mx-auto px-6 py-10"><p>{copy.messages.connect}</p></main>;
 
   return (
     <main className="max-w-4xl mx-auto px-6 py-10">
-      <h1 className="font-display text-3xl font-bold mb-6">Messagerie</h1>
+      <h1 className="font-display text-3xl font-bold mb-6">{copy.messages.title}</h1>
+      {error && (
+        <div className="rounded-2xl p-5 mb-6 bg-white border border-red-200 text-sm text-red-700">
+          {error}
+        </div>
+      )}
       {conversations.length === 0 ? (
-        <EmptyState text="Aucune conversation pour l'instant." />
+        <EmptyState text={copy.messages.empty} />
       ) : (
         <div className="rounded-2xl overflow-hidden bg-white border border-navy/[0.08] min-h-[440px] md:grid" style={{ gridTemplateColumns: '260px 1fr' }}>
           <div className={`border-r border-navy/[0.08] ${activeId ? 'hidden md:block' : 'block'}`}>
@@ -122,7 +240,7 @@ function MessagesInner() {
           </div>
           <div className={`flex flex-col ${activeId ? 'block' : 'hidden md:flex'}`}>
             {!activeId ? (
-              <div className="flex-1 flex items-center justify-center text-sm text-gray-500">Sélectionnez une conversation</div>
+              <div className="flex-1 flex items-center justify-center text-sm text-gray-500">{copy.messages.select}</div>
             ) : (
               <>
                 <div className="px-4 py-3 border-b border-navy/[0.08] md:hidden">
@@ -131,7 +249,7 @@ function MessagesInner() {
                     onClick={() => setActiveId(null)}
                     className="text-sm font-semibold text-navy"
                   >
-                    Retour aux conversations
+                    {copy.messages.back}
                   </button>
                   <div className="text-xs text-gray-500 mt-1 truncate">
                     {activeConversation?.missions?.departure}
@@ -141,7 +259,7 @@ function MessagesInner() {
                   </div>
                 </div>
                 <div ref={scrollRef} className="flex-1 p-4 space-y-3 overflow-y-auto max-h-[55vh] md:max-h-[380px]">
-                  {messages.length === 0 && <p className="text-sm text-center text-gray-500">Envoyez le premier message.</p>}
+                  {messages.length === 0 && <p className="text-sm text-center text-gray-500">{copy.messages.first}</p>}
                   {messages.map((m) => {
                     const mine = m.sender_id === profile.id;
                     return (
@@ -157,11 +275,11 @@ function MessagesInner() {
                   <input
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
-                    placeholder="Écrire un message..."
+                    placeholder={copy.messages.placeholder}
                     className="flex-1 text-sm border border-gray-200 rounded-[10px] px-3.5 py-2.5 outline-none"
                   />
-                  <button type="submit" disabled={!draft.trim()} className="flex items-center justify-center rounded-lg px-4 bg-navy text-white">
-                    <Send size={16} />
+                  <button type="submit" disabled={!draft.trim() || sending} className="flex items-center justify-center rounded-lg px-4 bg-navy text-white">
+                    {sending ? <Loader2 className="animate-spin" size={16} /> : <Send size={16} />}
                   </button>
                 </form>
               </>
@@ -174,8 +292,9 @@ function MessagesInner() {
 }
 
 export default function MessagesPage() {
+  const { copy } = useLocale();
   return (
-    <Suspense fallback={<div className="flex items-center gap-2 py-16 justify-center text-gray-500"><Loader2 className="animate-spin" size={20} /> Chargement...</div>}>
+    <Suspense fallback={<div className="flex items-center gap-2 py-16 justify-center text-gray-500"><Loader2 className="animate-spin" size={20} /> {copy.common.loading}</div>}>
       <MessagesInner />
     </Suspense>
   );

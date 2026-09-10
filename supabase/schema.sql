@@ -42,6 +42,15 @@ create table public.profiles (
   created_at timestamptz not null default now()
 );
 
+create table public.availability_slots (
+  id uuid primary key default gen_random_uuid(),
+  skipper_id uuid not null references public.profiles(id) on delete cascade,
+  start_date date not null,
+  end_date date not null,
+  created_at timestamptz not null default now(),
+  check (start_date <= end_date)
+);
+
 alter table public.profiles enable row level security;
 
 create policy "Public read of skipper profiles"
@@ -73,6 +82,24 @@ create policy "Admins can update any profile"
   on public.profiles for update
   using (exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin'));
 
+alter table public.availability_slots enable row level security;
+
+create policy "Public read skipper availability"
+  on public.availability_slots for select
+  using (
+    exists (
+      select 1
+      from public.profiles p
+      where p.id = availability_slots.skipper_id
+        and p.role = 'skipper'
+    )
+  );
+
+create policy "Skippers manage own availability"
+  on public.availability_slots for all
+  using (auth.uid() = skipper_id)
+  with check (auth.uid() = skipper_id);
+
 -- Auto-création du profil à l'inscription, à partir des métadonnées
 -- passées à supabase.auth.signUp({ options: { data: {...} } }).
 create function public.handle_new_user()
@@ -102,6 +129,7 @@ begin
     new.raw_user_meta_data->>'avatar_url',
     new.raw_user_meta_data->>'hourly_rate',
     new.raw_user_meta_data->>'availability_note',
+    coalesce(new.raw_user_meta_data->'certifications', '[]'::jsonb),
     new.raw_user_meta_data->>'bio',
     'role_details',
     null
@@ -213,6 +241,19 @@ create policy "Mission owner or skipper can update application"
     or auth.uid() = (select m.poster_id from public.missions m where m.id = mission_id)
   );
 
+create policy "Skippers can cancel pending applications"
+  on public.applications for delete
+  using (
+    auth.uid() = applications.skipper_id
+    and applications.status = 'pending'
+    and exists (
+      select 1
+      from public.profiles p
+      where p.id = auth.uid()
+        and p.role = 'skipper'
+    )
+  );
+
 create unique index applications_single_accepted_per_mission_idx
   on public.applications (mission_id)
   where status = 'accepted';
@@ -280,6 +321,24 @@ $$;
 create trigger on_application_created
   after insert on public.applications
   for each row execute function public.increment_applicants_count();
+
+create function public.decrement_applicants_count_on_delete()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  update public.missions
+  set applicants_count = greatest(applicants_count - 1, 0)
+  where id = old.mission_id;
+
+  return old;
+end;
+$$;
+
+create trigger on_application_deleted
+  after delete on public.applications
+  for each row execute function public.decrement_applicants_count_on_delete();
 
 create function public.notify_on_application_created()
 returns trigger
@@ -676,17 +735,77 @@ create policy "Anyone can read reviews"
 create policy "Participants can leave a review after a mission"
   on public.reviews for insert
   with check (
-    auth.uid() = reviewer_id
+    auth.uid() = reviews.reviewer_id
+    and reviews.reviewer_id <> reviews.reviewee_id
     and exists (
-      select 1 from public.applications a
+      select 1
+      from public.applications a
       join public.missions m on m.id = a.mission_id
       where a.mission_id = reviews.mission_id
+        and a.status = 'accepted'
+        and m.status = 'completed'
         and (
-          (auth.uid() = m.poster_id and a.skipper_id = reviews.reviewee_id)
-          or (auth.uid() = a.skipper_id and m.poster_id = reviews.reviewee_id)
+          (reviews.reviewer_id = m.poster_id and reviews.reviewee_id = a.skipper_id)
+          or (reviews.reviewer_id = a.skipper_id and reviews.reviewee_id = m.poster_id)
         )
     )
   );
+
+create unique index reviews_unique_by_mission_reviewer_idx
+  on public.reviews (mission_id, reviewer_id);
+
+create function public.enforce_review_integrity()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  mission_owner uuid;
+  accepted_skipper uuid;
+  mission_status text;
+begin
+  select m.poster_id, m.status
+  into mission_owner, mission_status
+  from public.missions m
+  where m.id = new.mission_id;
+
+  if mission_owner is null then
+    raise exception 'Mission introuvable pour cet avis';
+  end if;
+
+  if mission_status <> 'completed' then
+    raise exception 'Avis autorise uniquement pour une mission terminee';
+  end if;
+
+  select a.skipper_id
+  into accepted_skipper
+  from public.applications a
+  where a.mission_id = new.mission_id
+    and a.status = 'accepted'
+  limit 1;
+
+  if accepted_skipper is null then
+    raise exception 'Aucun skipper accepte pour cette mission';
+  end if;
+
+  if new.reviewer_id = new.reviewee_id then
+    raise exception 'Auto-evaluation interdite';
+  end if;
+
+  if not (
+    (new.reviewer_id = mission_owner and new.reviewee_id = accepted_skipper)
+    or (new.reviewer_id = accepted_skipper and new.reviewee_id = mission_owner)
+  ) then
+    raise exception 'Participants invalides pour cet avis';
+  end if;
+
+  return new;
+end;
+$$;
+
+create trigger on_review_integrity_check
+  before insert on public.reviews
+  for each row execute function public.enforce_review_integrity();
 
 -- ---------- 7. NOTIFICATIONS (schéma prêt, UI à développer plus tard) ----------
 create table public.notifications (
@@ -856,6 +975,10 @@ insert into storage.buckets (id, name, public)
 values ('verification-documents', 'verification-documents', false)
 on conflict (id) do update set public = excluded.public;
 
+insert into storage.buckets (id, name, public)
+values ('profile-avatars', 'profile-avatars', false)
+on conflict (id) do update set public = excluded.public;
+
 create policy "Users upload own verification documents"
   on storage.objects for insert
   with check (
@@ -877,6 +1000,33 @@ create policy "Users delete own verification documents"
   on storage.objects for delete
   using (
     bucket_id = 'verification-documents'
+    and (
+      auth.uid()::text = (storage.foldername(name))[1]
+      or public.is_admin(auth.uid())
+    )
+  );
+
+create policy "Users upload own profile avatar"
+  on storage.objects for insert
+  with check (
+    bucket_id = 'profile-avatars'
+    and auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+create policy "Users read own profile avatar"
+  on storage.objects for select
+  using (
+    bucket_id = 'profile-avatars'
+    and (
+      auth.uid()::text = (storage.foldername(name))[1]
+      or public.is_admin(auth.uid())
+    )
+  );
+
+create policy "Users delete own profile avatar"
+  on storage.objects for delete
+  using (
+    bucket_id = 'profile-avatars'
     and (
       auth.uid()::text = (storage.foldername(name))[1]
       or public.is_admin(auth.uid())

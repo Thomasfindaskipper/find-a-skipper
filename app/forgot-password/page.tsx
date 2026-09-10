@@ -3,10 +3,12 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { Loader2, ArrowLeft } from 'lucide-react';
+import { useLocale } from '@/components/LocaleProvider';
 import { createClient } from '@/lib/supabase/client';
 import { Field, TextInput, Button, ErrorBanner } from '@/components/ui';
 
 export default function ForgotPasswordPage() {
+  const { copy } = useLocale();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
@@ -34,34 +36,33 @@ export default function ForgotPasswordPage() {
   return (
     <main className="max-w-md mx-auto px-6 py-12">
       <Link href="/login" className="inline-flex items-center gap-2 text-sm font-semibold text-navy mb-6">
-        <ArrowLeft size={16} /> Retour à la connexion
+        <ArrowLeft size={16} /> {copy.verifyEmail.back}
       </Link>
 
-      <h1 className="font-display text-2xl font-bold mb-2">Mot de passe oublié</h1>
+      <h1 className="font-display text-2xl font-bold mb-2">{copy.login.forgot}</h1>
       <p className="text-sm text-gray-500 mb-6">
-        Saisissez votre email pour recevoir un lien de réinitialisation.
+        {copy.common.email}
       </p>
 
       <ErrorBanner message={error} />
 
       {sent ? (
         <div className="rounded-2xl border border-green-200 bg-green-50 p-5 text-sm text-green-800">
-          Un email de réinitialisation a été envoyé. Cliquez sur le lien reçu puis choisissez un nouveau mot de passe.
+          {copy.verifyEmail.sent}
         </div>
       ) : (
         <form onSubmit={handleSubmit}>
-          <Field label="Email">
+          <Field label={copy.common.email}>
             <TextInput
               type="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="prenom@email.com"
             />
           </Field>
 
           <Button type="submit" disabled={loading} className="w-full flex items-center justify-center gap-2 mt-2">
-            {loading && <Loader2 className="animate-spin" size={16} />} Envoyer le lien
+            {loading && <Loader2 className="animate-spin" size={16} />} {copy.verifyEmail.resend}
           </Button>
         </form>
       )}

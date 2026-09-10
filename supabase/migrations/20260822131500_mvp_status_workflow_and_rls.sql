@@ -17,7 +17,7 @@ alter table public.missions
 
 alter table public.missions
   add constraint missions_status_check
-  check (status in ('open', 'in_discussion', 'filled', 'completed'));
+  check (status in ('open', 'in_discussion', 'filled', 'assigned', 'completed', 'cancelled'));
 
 alter table public.applications
   add column if not exists status text;

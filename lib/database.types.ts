@@ -17,6 +17,20 @@ export type NotificationType =
 export type VerificationStatus = 'draft' | 'submitted' | 'approved' | 'rejected';
 export type VerificationDocType = 'identity' | 'license' | 'certificate' | 'company' | 'ownership' | 'mandate' | 'other';
 
+export interface ProfileCertification {
+  name: string;
+  verified: boolean;
+  authority?: string | null;
+}
+
+export interface AvailabilitySlot {
+  id: string;
+  skipper_id: string;
+  start_date: string;
+  end_date: string;
+  created_at: string;
+}
+
 export interface Profile {
   id: string;
   role: Role;
@@ -36,11 +50,12 @@ export interface Profile {
   boat_types: string[];
   languages: string[];
   permits: string | null;
-  certifications: { name: string; file_url?: string; verified: boolean }[];
+  certifications: ProfileCertification[];
   bio: string | null;
   gallery_urls: string[];
   hourly_rate: string | null;
   availability_note: string | null;
+  availability_slots?: AvailabilitySlot[];
   identity_verified: boolean;
   onboarding_step: 'role_details' | 'done' | null;
   onboarding_completed_at: string | null;
@@ -114,6 +129,8 @@ export interface Review {
   rating: number;
   comment: string | null;
   created_at: string;
+  reviewer?: Pick<Profile, 'full_name'>;
+  reviewee?: Pick<Profile, 'full_name'>;
 }
 
 export interface Notification {

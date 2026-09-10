@@ -2,8 +2,12 @@ import { redirect } from 'next/navigation';
 import { ShieldAlert } from 'lucide-react';
 import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
+import { getRequestCopy, getRequestLocale } from '@/lib/i18n/server';
+import { getExtraCopy } from '@/lib/i18n/extra';
 
 export default async function AdminDashboard() {
+  const copy = await getRequestCopy();
+  const extra = getExtraCopy(await getRequestLocale());
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
@@ -14,14 +18,13 @@ export default async function AdminDashboard() {
   return (
     <main className="max-w-2xl mx-auto px-6 py-16 text-center">
       <ShieldAlert size={36} className="text-navyDeep mx-auto mb-4" />
-      <h1 className="font-display text-2xl font-bold mb-2">Espace administrateur</h1>
+      <h1 className="font-display text-2xl font-bold mb-2">{copy.nav.dashboard}</h1>
       <p className="text-sm text-gray-500">
-        Cette interface n&apos;est pas encore développée. Le schéma de la base de données est déjà prêt pour :
-        vérifier les skippers, gérer les signalements, mettre en avant des missions, et consulter des statistiques.
+        {extra.profile.verificationTitle}
       </p>
       <div className="mt-6">
         <Link href="/dashboard/admin/verifications" className="inline-flex items-center px-4 py-2 rounded-lg bg-navy text-white text-sm font-semibold">
-          Revoir les demandes de verification
+          {extra.profile.submitForVerification}
         </Link>
       </div>
     </main>
